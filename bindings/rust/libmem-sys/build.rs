@@ -65,10 +65,13 @@ fn get_fetch_information() -> FetchInfo {
     // Format archive URL
     let archive_ext = "tar.gz";
     let archive_filename = format!("{}.{}", release_target, archive_ext);
-    let download_url = format!(
-        "https://github.com/rdbo/libmem/releases/download/{}/{}",
-        version, archive_filename
-    );
+    let repo = env::var("LIBMEM_REPO").unwrap_or_else(|_| "rdbo/libmem".to_string());
+    let download_url = env::var("LIBMEM_DOWNLOAD_URL").unwrap_or_else(|_| {
+        format!(
+            "https://github.com/{}/releases/download/{}/{}",
+            repo, version, archive_filename
+        )
+    });
 
     return FetchInfo {
         version,
@@ -173,6 +176,9 @@ fn run_tests() {
         ),
     ]);
 
+    env::remove_var("LIBMEM_REPO");
+    env::remove_var("LIBMEM_DOWNLOAD_URL");
+
     for (expected, cargo_vars) in test_cases {
         env::set_var("CARGO_PKG_VERSION", cargo_vars[0]);
         env::set_var("CARGO_CFG_TARGET_OS", cargo_vars[1]);
@@ -181,12 +187,37 @@ fn run_tests() {
         env::set_var("CARGO_CFG_TARGET_ABI", cargo_vars[4]);
         let fetch_info = get_fetch_information();
         assert_eq!(expected, fetch_info.release_target);
+        assert_eq!(
+            format!(
+                "https://github.com/rdbo/libmem/releases/download/{}/{}.tar.gz",
+                cargo_vars[0], expected
+            ),
+            fetch_info.download_url
+        );
     }
+
+    // Test custom repo
+    env::set_var("LIBMEM_REPO", "test-user/my-libmem");
+    let fetch_info = get_fetch_information();
+    assert!(fetch_info
+        .download_url
+        .starts_with("https://github.com/test-user/my-libmem/releases/download/"));
+    env::remove_var("LIBMEM_REPO");
+
+    // Test custom download URL
+    env::set_var("LIBMEM_DOWNLOAD_URL", "https://custom.site/archive.tar.gz");
+    let fetch_info = get_fetch_information();
+    assert_eq!("https://custom.site/archive.tar.gz", fetch_info.download_url);
+    env::remove_var("LIBMEM_DOWNLOAD_URL");
 
     panic!("[libmem-sys] OK - build.rs tests have passed. Disable the 'test' feature to actually build.");
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=LIBMEM_DIR");
+    println!("cargo:rerun-if-env-changed=LIBMEM_REPO");
+    println!("cargo:rerun-if-env-changed=LIBMEM_DOWNLOAD_URL");
+
     #[cfg(feature = "test")]
     run_tests();
 
