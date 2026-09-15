@@ -141,7 +141,9 @@ if (LIBMEM_BUILD_TESTS)
 endif()
 
 set_target_properties(libmem PROPERTIES POSITION_INDEPENDENT_CODE True INCLUDES ${LIBMEM_INC})
-target_compile_definitions(libmem PUBLIC LM_EXPORT)
+if (NOT LIBMEM_BUILD_STATIC)
+	target_compile_definitions(libmem PRIVATE LM_EXPORT)
+endif()
 add_dependencies(libmem
 	capstone-engine
 	keystone-engine
