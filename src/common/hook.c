@@ -47,7 +47,7 @@ LM_HookCode(lm_address_t  from,
 	if (aligned_size == 0)
 		goto FREE_EXIT;
 
-	if (!LM_ProtMemory(from, hooksize, LM_PROT_XRW, &old_prot))
+	if (!LM_ProtMemory(from, aligned_size, LM_PROT_XRW, &old_prot))
 		goto FREE_EXIT;
 
 	if (trampoline_out) {
@@ -86,12 +86,18 @@ LM_HookCode(lm_address_t  from,
 	if (LM_WriteMemory(from, payload, hooksize) == 0)
 		goto TRAMP_EXIT;
 
+	if (aligned_size > hooksize) {
+		lm_byte_t *no_ops = (lm_byte_t *)alloca(aligned_size - hooksize);
+		if (generate_no_ops(no_ops, aligned_size - hooksize) > 0)
+			LM_WriteMemory(from + hooksize, no_ops, aligned_size - hooksize);
+	}
+
 	trampsize = aligned_size;
 	goto PROT_EXIT;
 TRAMP_EXIT:
 	LM_FreeMemory(tramp, aligned_size + hooksize);
 PROT_EXIT:
-	LM_ProtMemory(from, hooksize, old_prot, LM_NULLPTR);
+	LM_ProtMemory(from, aligned_size, old_prot, LM_NULLPTR);
 FREE_EXIT:
 	free(payload);
 
@@ -126,7 +132,7 @@ LM_HookCodeEx(const lm_process_t *process,
 	if (aligned_size == 0)
 		goto FREE_EXIT;
 
-	if (!LM_ProtMemoryEx(process, from, hooksize, LM_PROT_XRW, &old_prot))
+	if (!LM_ProtMemoryEx(process, from, aligned_size, LM_PROT_XRW, &old_prot))
 		goto FREE_EXIT;
 
 	if (trampoline_out) {
@@ -168,12 +174,18 @@ LM_HookCodeEx(const lm_process_t *process,
 	if (LM_WriteMemoryEx(process, from, payload, hooksize) == 0)
 		goto TRAMP_EXIT;
 
+	if (aligned_size > hooksize) {
+		lm_byte_t *no_ops = (lm_byte_t *)alloca(aligned_size - hooksize);
+		if (generate_no_ops(no_ops, aligned_size - hooksize) > 0)
+			LM_WriteMemoryEx(process, from + hooksize, no_ops, aligned_size - hooksize);
+	}
+
 	trampsize = aligned_size;
 	goto PROT_EXIT;
 TRAMP_EXIT:
 	LM_FreeMemoryEx(process, tramp, aligned_size + hooksize);
 PROT_EXIT:
-	LM_ProtMemoryEx(process, from, hooksize, old_prot, LM_NULLPTR);
+	LM_ProtMemoryEx(process, from, aligned_size, old_prot, LM_NULLPTR);
 FREE_EXIT:
 	free(payload);
 
