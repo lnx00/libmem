@@ -5,36 +5,60 @@ setlocal enabledelayedexpansion
 :: libmem Windows Build Script
 :: Usage:
 ::   build.bat [Release|Debug] [x64|x86|arm64]
-:: Example:
+:: Examples:
 ::   build.bat
-::   build.bat Release x64
+::   build.bat Release x86
 ::   build.bat Debug x64
 :: ============================================================================
 
 set "BUILD_TYPE=%~1"
 if "%BUILD_TYPE%"=="" set "BUILD_TYPE=Release"
 
-set "ARCH=%~2"
-if "%ARCH%"=="" set "ARCH=x64"
+set "RAW_ARCH=%~2"
+if "%RAW_ARCH%"=="" set "RAW_ARCH=x64"
+
+:: Normalize architecture
+if /i "%RAW_ARCH%"=="x86" (
+    set "ARCH=x86"
+    set "LIBMEM_ARCH=i686"
+    set "RUST_TARGET=i686-pc-windows-msvc"
+) else if /i "%RAW_ARCH%"=="i686" (
+    set "ARCH=x86"
+    set "LIBMEM_ARCH=i686"
+    set "RUST_TARGET=i686-pc-windows-msvc"
+) else if /i "%RAW_ARCH%"=="x64" (
+    set "ARCH=x64"
+    set "LIBMEM_ARCH=x86_64"
+    set "RUST_TARGET=x86_64-pc-windows-msvc"
+) else if /i "%RAW_ARCH%"=="x86_64" (
+    set "ARCH=x64"
+    set "LIBMEM_ARCH=x86_64"
+    set "RUST_TARGET=x86_64-pc-windows-msvc"
+) else if /i "%RAW_ARCH%"=="amd64" (
+    set "ARCH=x64"
+    set "LIBMEM_ARCH=x86_64"
+    set "RUST_TARGET=x86_64-pc-windows-msvc"
+) else if /i "%RAW_ARCH%"=="arm64" (
+    set "ARCH=arm64"
+    set "LIBMEM_ARCH=aarch64"
+    set "RUST_TARGET=aarch64-pc-windows-msvc"
+) else (
+    echo [ERROR] Unsupported architecture: %RAW_ARCH%
+    echo Supported: x64, x86, arm64
+    exit /b 1
+)
 
 set "SCRIPT_DIR=%~dp0"
-set "BUILD_DIR=%SCRIPT_DIR%build"
+set "BUILD_DIR=%SCRIPT_DIR%build\%ARCH%"
 
 echo ============================================================
 echo Building libmem (Windows)
 echo Configuration : %BUILD_TYPE%
-echo Architecture  : %ARCH%
+echo Architecture  : %ARCH% (LIBMEM_ARCH=%LIBMEM_ARCH%)
 echo Build Dir     : %BUILD_DIR%
 echo ============================================================
 
-:: 1. Check if Visual Studio environment is already initialized
-where nmake >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    echo [OK] Visual Studio build environment already active.
-    goto :find_cmake
-)
-
-:: 2. Find Visual Studio using vswhere
+:: Find Visual Studio using vswhere
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
 
@@ -63,12 +87,11 @@ if not exist "%VCVARSALL%" (
 echo [*] Initializing MSVC environment (%ARCH%)...
 call "%VCVARSALL%" %ARCH%
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Failed to initialize MSVC environment.
+    echo [ERROR] Failed to initialize MSVC environment for %ARCH%.
     exit /b 1
 )
 
-:find_cmake
-:: 3. Find CMake
+:: Find CMake
 where cmake >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     if defined VS_PATH (
@@ -86,16 +109,16 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-:: 4. Configure project
+:: Configure project
 echo.
 echo [*] Configuring CMake...
-cmake -B "%BUILD_DIR%" -DLIBMEM_BUILD_STATIC=ON -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
+cmake -B "%BUILD_DIR%" -DLIBMEM_BUILD_STATIC=ON -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DLIBMEM_ARCH=%LIBMEM_ARCH%
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] CMake configuration failed.
     exit /b %ERRORLEVEL%
 )
 
-:: 5. Build project
+:: Build project
 echo.
 echo [*] Building libmem...
 cmake --build "%BUILD_DIR%" --config %BUILD_TYPE%
@@ -104,7 +127,7 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )
 
-:: 6. Locate output library
+:: Locate output library
 set "LIB_FILE=%BUILD_DIR%\libmem.lib"
 if not exist "%LIB_FILE%" (
     if exist "%BUILD_DIR%\%BUILD_TYPE%\libmem.lib" (
