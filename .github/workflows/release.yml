@@ -96,6 +96,8 @@ jobs:
       - name: Set up Android SDK
         if: contains(matrix.target, '-android-')
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
       - name: Install Android toolchain
         if: contains(matrix.target, '-android-')
         run: sdkmanager "platform-tools" "platforms;android-35" "ndk;${ANDROID_NDK_VERSION}" "cmake;3.22.1"
